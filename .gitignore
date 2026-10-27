@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment variables (passwords, keys)
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Prisma local database (agar SQLite use ho raha hai)
+prisma/*.db
+prisma/*.db-journal
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

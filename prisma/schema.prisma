@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  phone         String?
+  createdAt     DateTime       @default(now())
+  sessions      Session[]
+  orders        Order[]
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+}
+
+model Admin {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         String // 'super' | 'admin'
+  permissions  String // JSON array string
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminId   String?
+  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id             String   @id
+  name           String
+  brand          String
+  category       String
+  gender         String
+  price          Float
+  originalPrice  Float?
+  rating         Float
+  reviews        Int
+  isNew          Boolean  @default(false)
+  stock          Int
+  description    String
+  colorwaySole   String
+  colorwayUpper  String
+  colorwayAccent String
+  colors         String // JSON array string
+  sizes          String // JSON array string
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  orderId           String      @unique
+  userId            String?
+  user              User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerName      String
+  customerEmail     String
+  total             Float
+  status            String      @default("Pending") // Pending | Confirmed | Delivered
+  estimatedDelivery String
+  shippingAddress   String? // JSON object string
+  paymentMethod     String?
+  createdAt         DateTime    @default(now())
+  items             OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  name      String
+  brand     String
+  price     Float
+  size      Int
+  qty       Int
+  colorway  String // JSON object string
+  colorName String?
+}
+
+model Banner {
+  id          String  @id @default(cuid())
+  eyebrow     String
+  headingLine1 String
+  headingLine2 String
+  description String
+  sole        String
+  upper       String
+  accent      String
+  sortOrder   Int     @default(0)
+}
+
+model Settings {
+  id               Int     @id @default(1)
+  jazzcashEnabled  Boolean @default(true)
+  jazzcashLabel    String  @default("JazzCash")
+  easypaisaEnabled Boolean @default(true)
+  easypaisaLabel   String  @default("EasyPaisa")
+  cardEnabled      Boolean @default(true)
+  cardLabel        String  @default("Card")
+  whatsappEnabled  Boolean @default(true)
+  whatsappNumber   String  @default("923001234567")
+}
+
+model CartItem {
+  id        String @id @default(cuid())
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
+  productId String
+  name      String
+  brand     String
+  price     Float
+  size      Int
+  qty       Int
+  colorway  String // JSON object string
+  colorName String?
+
+  @@unique([userId, key])
+}
+
+model WishlistItem {
+  id        String @id @default(cuid())
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+
+  @@unique([userId, productId])
+}
