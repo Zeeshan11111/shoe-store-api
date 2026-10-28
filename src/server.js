@@ -15,6 +15,7 @@ const { router: authRouter } = require('./routes/auth.js')
 const { router: adminAuthRouter } = require('./routes/adminAuth.js')
 const { router: cartRouter } = require('./routes/cart.js')
 const { router: wishlistRouter } = require('./routes/wishlist.js')
+const { router: salesRouter } = require('./routes/sales.js')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -37,6 +38,7 @@ app.use('/api/auth', authRouter)
 app.use('/api/admin-auth', adminAuthRouter)
 app.use('/api/cart', cartRouter)
 app.use('/api/wishlist', wishlistRouter)
+app.use('/api/sales', salesRouter)
 
 app.use((err, req, res, next) => {
   console.error(err)

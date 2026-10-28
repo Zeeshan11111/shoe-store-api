@@ -11,6 +11,7 @@ function serialize(s) {
       card: { enabled: s.cardEnabled, label: s.cardLabel },
     },
     whatsapp: { enabled: s.whatsappEnabled, number: s.whatsappNumber },
+    brandStrip: { enabled: s.brandStripEnabled },
   }
 }
 
@@ -24,6 +25,7 @@ function toRow(settings) {
     cardLabel: settings.paymentMethods.card.label,
     whatsappEnabled: !!settings.whatsapp.enabled,
     whatsappNumber: settings.whatsapp.number,
+    brandStripEnabled: !!settings.brandStrip?.enabled,
   }
 }
 

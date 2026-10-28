@@ -11,7 +11,8 @@ router.get('/', async (req, res) => {
   const pending = orders.filter((o) => o.status === 'Pending').length
   const confirmed = orders.filter((o) => o.status === 'Confirmed').length
   const delivered = orders.filter((o) => o.status === 'Delivered').length
-  const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0)
+  const cancelled = orders.filter((o) => o.status === 'Cancelled').length
+  const totalRevenue = orders.filter((o) => o.status !== 'Cancelled').reduce((sum, o) => sum + o.total, 0)
   const totalUsers = await prisma.user.count()
 
   const days = []
@@ -24,6 +25,7 @@ router.get('/', async (req, res) => {
   const salesByDay = days.map((date) => {
     const dayTotal = orders
       .filter((o) => {
+        if (o.status === 'Cancelled') return false
         const created = new Date(o.createdAt)
         return (
           created.getFullYear() === date.getFullYear() &&
@@ -36,7 +38,7 @@ router.get('/', async (req, res) => {
   })
 
   res.json({
-    data: { totalOrders, pending, confirmed, delivered, totalRevenue, totalUsers, salesByDay },
+    data: { totalOrders, pending, confirmed, delivered, cancelled, totalRevenue, totalUsers, salesByDay },
     error: null,
   })
 })

@@ -46,6 +46,17 @@ module.exports = {
         type: 'object',
         properties: { sole: { type: 'string' }, upper: { type: 'string' }, accent: { type: 'string' } },
       },
+      Sale: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          name: { type: 'string', example: 'Summer Sale' },
+          percentage: { type: 'integer', example: 30 },
+          enabled: { type: 'boolean' },
+          startDate: { type: 'string', format: 'date-time', nullable: true },
+          endDate: { type: 'string', format: 'date-time', nullable: true },
+        },
+      },
       Product: {
         type: 'object',
         properties: {
@@ -64,6 +75,8 @@ module.exports = {
           colorway: ref('Colorway'),
           colors: { type: 'array', items: {} },
           sizes: { type: 'array', items: {} },
+          saleId: { type: 'string', nullable: true, description: 'Assign a sale campaign (write)' },
+          sale: { ...ref('Sale'), nullable: true, description: 'Resolved sale campaign (read)' },
         },
       },
       CartItem: {
@@ -87,6 +100,8 @@ module.exports = {
           heading: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 2 },
           description: { type: 'string' },
           colorway: ref('Colorway'),
+          saleId: { type: 'string', nullable: true, description: 'Assign a sale campaign (write)' },
+          sale: { ...ref('Sale'), nullable: true, description: 'Resolved sale campaign (read)' },
         },
       },
       Settings: {
@@ -101,6 +116,7 @@ module.exports = {
             },
           },
           whatsapp: { type: 'object', properties: { enabled: { type: 'boolean' }, number: { type: 'string' } } },
+          brandStrip: { type: 'object', properties: { enabled: { type: 'boolean' } } },
         },
       },
       Credentials: {
@@ -190,6 +206,13 @@ module.exports = {
       post: { tags: ['Products'], summary: 'Create or update product (upsert by id)', requestBody: json(ref('Product')), responses: ok(ref('Product')) },
     },
     '/api/products/all': { get: { tags: ['Products'], summary: 'All products (admin)', responses: ok(arrayOf('Product')) } },
+    '/api/products/brands': {
+      get: {
+        tags: ['Products'],
+        summary: 'Distinct brand names currently in stock (storefront brand strip)',
+        responses: ok({ type: 'array', items: { type: 'string' } }),
+      },
+    },
     '/api/products/{id}': {
       get: { tags: ['Products'], summary: 'Get product', parameters: [pathParam('id')], responses: ok(ref('Product')) },
       delete: { tags: ['Products'], summary: 'Delete product', parameters: [pathParam('id')], responses: ok({ type: 'boolean' }) },
@@ -265,6 +288,50 @@ module.exports = {
     '/api/banners': {
       get: { tags: ['Banners'], summary: 'Hero banners', responses: ok(arrayOf('Banner')) },
       put: { tags: ['Banners'], summary: 'Replace all banners', requestBody: json(arrayOf('Banner')), responses: ok(arrayOf('Banner')) },
+    },
+
+    '/api/sales': {
+      get: {
+        tags: ['Sales'],
+        summary: 'List sale campaigns',
+        parameters: [queryParam('active', { enum: ['true', 'false'] })],
+        responses: ok(arrayOf('Sale')),
+      },
+      post: {
+        tags: ['Sales'],
+        summary: 'Create a sale campaign',
+        requestBody: json({
+          type: 'object',
+          required: ['name', 'percentage'],
+          properties: {
+            name: { type: 'string', example: 'Summer Sale' },
+            percentage: { type: 'integer', example: 30 },
+            enabled: { type: 'boolean' },
+            startDate: { type: 'string', format: 'date-time', nullable: true },
+            endDate: { type: 'string', format: 'date-time', nullable: true },
+          },
+        }),
+        responses: ok(ref('Sale')),
+      },
+    },
+    '/api/sales/{id}': {
+      patch: {
+        tags: ['Sales'],
+        summary: 'Update a sale campaign',
+        parameters: [pathParam('id')],
+        requestBody: json({
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            percentage: { type: 'integer' },
+            enabled: { type: 'boolean' },
+            startDate: { type: 'string', format: 'date-time', nullable: true },
+            endDate: { type: 'string', format: 'date-time', nullable: true },
+          },
+        }),
+        responses: ok(ref('Sale')),
+      },
+      delete: { tags: ['Sales'], summary: 'Delete a sale campaign', parameters: [pathParam('id')], responses: ok({ type: 'boolean' }) },
     },
     '/api/settings': {
       get: { tags: ['Settings'], summary: 'Store settings', responses: ok(ref('Settings')) },

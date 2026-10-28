@@ -10,7 +10,7 @@ const {
 
 const router = express.Router()
 
-const ALL_PERMISSIONS = ['dashboard', 'orders', 'products', 'banners', 'users']
+const ALL_PERMISSIONS = ['dashboard', 'orders', 'products', 'banners', 'users', 'sales']
 
 function safe(admin) {
   return { email: admin.email, role: admin.role, permissions: JSON.parse(admin.permissions) }

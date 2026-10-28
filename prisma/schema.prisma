@@ -59,8 +59,22 @@ model Product {
   colorwayAccent String
   colors         String // JSON array string
   sizes          String // JSON array string
+  saleId         String?
+  sale           Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+model Sale {
+  id         String    @id @default(cuid())
+  name       String
+  percentage Int
+  enabled    Boolean   @default(true)
+  startDate  DateTime?
+  endDate    DateTime?
+  createdAt  DateTime  @default(now())
+  products   Product[]
+  banners    Banner[]
 }
 
 model Order {
@@ -103,6 +117,8 @@ model Banner {
   upper       String
   accent      String
   sortOrder   Int     @default(0)
+  saleId      String?
+  sale        Sale?   @relation(fields: [saleId], references: [id], onDelete: SetNull)
 }
 
 model Settings {
@@ -115,6 +131,7 @@ model Settings {
   cardLabel        String  @default("Card")
   whatsappEnabled  Boolean @default(true)
   whatsappNumber   String  @default("923001234567")
+  brandStripEnabled Boolean @default(true)
 }
 
 model CartItem {

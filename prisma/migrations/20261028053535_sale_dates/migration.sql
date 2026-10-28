@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Sale" ADD COLUMN "endDate" DATETIME;
+ALTER TABLE "Sale" ADD COLUMN "startDate" DATETIME;
