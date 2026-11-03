@@ -15,6 +15,7 @@ function serialize(item) {
     qty: item.qty,
     colorway: JSON.parse(item.colorway),
     colorName: item.colorName,
+    imageUrl: item.imageUrl || null,
   }
 }
 
@@ -31,7 +32,7 @@ router.post('/', requireUser, async (req, res) => {
     for (const item of req.body.items) {
       await prisma.cartItem.upsert({
         where: { userId_key: { userId: req.user.id, key: item.key } },
-        create: { userId: req.user.id, key: item.key, productId: item.id, name: item.name, brand: item.brand, price: item.price, size: item.size, qty: item.qty, colorway: JSON.stringify(item.colorway), colorName: item.colorName },
+        create: { userId: req.user.id, key: item.key, productId: item.id, name: item.name, brand: item.brand, price: item.price, size: item.size, qty: item.qty, colorway: JSON.stringify(item.colorway), colorName: item.colorName, imageUrl: item.imageUrl || null },
         update: { qty: { increment: item.qty } },
       })
     }
@@ -40,25 +41,26 @@ router.post('/', requireUser, async (req, res) => {
   }
 
   const item = req.body
-  const existing = await prisma.cartItem.findUnique({
+  // upsert (not findUnique-then-create/update) so two rapid "Add to bag"
+  // clicks for the same item can't race each other into a duplicate-key
+  // crash — SQLite rejects the second create before this ever runs again.
+  const saved = await prisma.cartItem.upsert({
     where: { userId_key: { userId: req.user.id, key: item.key } },
+    create: {
+      userId: req.user.id,
+      key: item.key,
+      productId: item.id,
+      name: item.name,
+      brand: item.brand,
+      price: item.price,
+      size: item.size,
+      qty: item.qty,
+      colorway: JSON.stringify(item.colorway),
+      colorName: item.colorName,
+      imageUrl: item.imageUrl || null,
+    },
+    update: { qty: item.qty },
   })
-  const saved = existing
-    ? await prisma.cartItem.update({ where: { id: existing.id }, data: { qty: item.qty } })
-    : await prisma.cartItem.create({
-        data: {
-          userId: req.user.id,
-          key: item.key,
-          productId: item.id,
-          name: item.name,
-          brand: item.brand,
-          price: item.price,
-          size: item.size,
-          qty: item.qty,
-          colorway: JSON.stringify(item.colorway),
-          colorName: item.colorName,
-        },
-      })
   res.json({ data: serialize(saved), error: null })
 })
 

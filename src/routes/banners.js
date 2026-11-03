@@ -9,6 +9,7 @@ function serialize(b) {
     heading: [b.headingLine1, b.headingLine2],
     description: b.description,
     colorway: { sole: b.sole, upper: b.upper, accent: b.accent },
+    imageUrl: b.imageUrl || null,
     sale: b.sale
       ? {
           id: b.sale.id,
@@ -43,6 +44,7 @@ router.put('/', async (req, res) => {
         sole: b.colorway.sole,
         upper: b.colorway.upper,
         accent: b.colorway.accent,
+        imageUrl: b.imageUrl || null,
         saleId: b.saleId || null,
         sortOrder: i,
       })),

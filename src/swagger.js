@@ -110,6 +110,7 @@ module.exports = {
           paymentMethods: {
             type: 'object',
             properties: {
+              cod: { type: 'object', properties: { enabled: { type: 'boolean' }, label: { type: 'string' } } },
               jazzcash: { type: 'object', properties: { enabled: { type: 'boolean' }, label: { type: 'string' } } },
               easypaisa: { type: 'object', properties: { enabled: { type: 'boolean' }, label: { type: 'string' } } },
               card: { type: 'object', properties: { enabled: { type: 'boolean' }, label: { type: 'string' } } },
@@ -261,7 +262,7 @@ module.exports = {
             items: arrayOf('CartItem'),
             customer: { type: 'object', properties: { name: { type: 'string' }, email: { type: 'string' } } },
             shippingAddress: { type: 'object' },
-            paymentMethod: { type: 'string', enum: ['jazzcash', 'easypaisa', 'card'] },
+            paymentMethod: { type: 'string', enum: ['cod', 'jazzcash', 'easypaisa', 'card', 'whatsapp'] },
           },
         }),
         responses: ok(),

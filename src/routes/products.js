@@ -1,7 +1,25 @@
 const express = require('express')
 const prisma = require('../lib/prisma.js')
+const { requireUser } = require('../lib/session.js')
+const { parseVariants, sanitizeVariants, totalStock } = require('../lib/variants.js')
 
 const router = express.Router()
+
+// Real customer ratings override the admin-seeded rating/reviews count the
+// moment at least one review exists — computed in bulk (one groupBy, not
+// one query per product) so list endpoints stay cheap.
+async function getReviewStats() {
+  const stats = await prisma.review.groupBy({
+    by: ['productId'],
+    _avg: { rating: true },
+    _count: { rating: true },
+  })
+  const map = {}
+  for (const s of stats) {
+    map[s.productId] = { rating: Math.round(s._avg.rating * 10) / 10, reviews: s._count.rating }
+  }
+  return map
+}
 
 // A sale campaign only actually discounts the product while it's enabled
 // and (if dated) inside its start/end window — same rule the storefront
@@ -18,7 +36,9 @@ function isSaleActive(sale) {
 // admin list and the upsert response, so editing a product and saving it
 // back never accidentally persists an already-discounted price as the new
 // base price.
-function serialize(p) {
+function serialize(p, reviewStats = {}) {
+  const real = reviewStats[p.id]
+  const variants = parseVariants(p)
   return {
     id: p.id,
     name: p.name,
@@ -27,14 +47,16 @@ function serialize(p) {
     gender: p.gender,
     price: p.price,
     originalPrice: p.originalPrice,
-    rating: p.rating,
-    reviews: p.reviews,
+    rating: real ? real.rating : p.rating,
+    reviews: real ? real.reviews : p.reviews,
     isNew: p.isNew,
-    stock: p.stock,
+    stock: totalStock(variants),
     description: p.description,
     colorway: { sole: p.colorwaySole, upper: p.colorwayUpper, accent: p.colorwayAccent },
-    colors: JSON.parse(p.colors),
+    colors: variants.map((v) => v.color),
     sizes: JSON.parse(p.sizes),
+    images: variants.flatMap((v) => v.images),
+    variants,
     sale: p.sale
       ? {
           id: p.sale.id,
@@ -53,8 +75,8 @@ function serialize(p) {
 // attached, the real price is computed here instead of the admin having to
 // hand-type a separate sale price, and the discount disappears automatically
 // the moment the campaign is disabled or its date window ends.
-function serializeForStorefront(p) {
-  const base = serialize(p)
+function serializeForStorefront(p, reviewStats = {}) {
+  const base = serialize(p, reviewStats)
   if (!isSaleActive(p.sale)) return base
   return {
     ...base,
@@ -63,7 +85,22 @@ function serializeForStorefront(p) {
   }
 }
 
+// Variants are the source of truth; the flat `colors`/`images`/`stock`
+// columns are derived from them so list queries (e.g. "brands in stock")
+// keep working without parsing JSON.
 function toRow(product) {
+  const sizes = (Array.isArray(product.sizes) ? product.sizes : []).map(Number).filter((n) => n > 0)
+  let variants = sanitizeVariants(product.variants, sizes)
+  if (!variants.length) {
+    variants = parseVariants({
+      variants: '[]',
+      colors: JSON.stringify(product.colors || []),
+      sizes: JSON.stringify(sizes),
+      images: JSON.stringify(product.images || []),
+      stock: Number(product.stock) || 0,
+      colorwayUpper: product.colorway?.upper,
+    })
+  }
   return {
     id: product.id,
     name: product.name,
@@ -75,13 +112,15 @@ function toRow(product) {
     rating: Number(product.rating) || 0,
     reviews: Number(product.reviews) || 0,
     isNew: !!product.isNew,
-    stock: Number(product.stock) || 0,
+    stock: totalStock(variants),
     description: product.description || '',
     colorwaySole: product.colorway.sole,
-    colorwayUpper: product.colorway.upper,
+    colorwayUpper: variants[0]?.hex || product.colorway.upper,
     colorwayAccent: product.colorway.accent,
-    colors: JSON.stringify(product.colors),
-    sizes: JSON.stringify(product.sizes),
+    colors: JSON.stringify(variants.map((v) => v.color)),
+    sizes: JSON.stringify(sizes),
+    images: JSON.stringify(variants.flatMap((v) => v.images)),
+    variants: JSON.stringify(variants),
     saleId: product.saleId || null,
   }
 }
@@ -118,14 +157,20 @@ router.get('/', async (req, res) => {
       orderBy = { createdAt: 'asc' }
   }
 
-  const rows = await prisma.product.findMany({ where, orderBy, include: { sale: true } })
-  res.json({ data: rows.map(serializeForStorefront), error: null })
+  const [rows, reviewStats] = await Promise.all([
+    prisma.product.findMany({ where, orderBy, include: { sale: true } }),
+    getReviewStats(),
+  ])
+  res.json({ data: rows.map((p) => serializeForStorefront(p, reviewStats)), error: null })
 })
 
 // GET /api/products/all — unfiltered, for the admin list
 router.get('/all', async (req, res) => {
-  const rows = await prisma.product.findMany({ orderBy: { createdAt: 'asc' }, include: { sale: true } })
-  res.json({ data: rows.map(serialize), error: null })
+  const [rows, reviewStats] = await Promise.all([
+    prisma.product.findMany({ orderBy: { createdAt: 'asc' }, include: { sale: true } }),
+    getReviewStats(),
+  ])
+  res.json({ data: rows.map((p) => serialize(p, reviewStats)), error: null })
 })
 
 // GET /api/products/brands — distinct brand names currently stocked, for the storefront brand strip
@@ -143,7 +188,50 @@ router.get('/brands', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const row = await prisma.product.findUnique({ where: { id: req.params.id }, include: { sale: true } })
   if (!row) return res.json({ data: null, error: 'Product not found.' })
-  res.json({ data: serializeForStorefront(row), error: null })
+  const reviewStats = await getReviewStats()
+  res.json({ data: serializeForStorefront(row, reviewStats), error: null })
+})
+
+// Only lets someone rate a product once they've actually received an order
+// containing it — a basic "verified purchase" gate, not open to anyone
+// logged in.
+async function hasDeliveredOrder(userId, productId) {
+  const item = await prisma.orderItem.findFirst({
+    where: { productId, order: { userId, status: 'Delivered' } },
+  })
+  return !!item
+}
+
+// POST /api/products/:id/review — submit or update your own rating (one per user per product)
+router.post('/:id/review', requireUser, async (req, res) => {
+  const ratingNum = Number(req.body.rating)
+  if (!Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+    return res.json({ data: null, error: 'Rating must be a whole number from 1 to 5.' })
+  }
+  const eligible = await hasDeliveredOrder(req.user.id, req.params.id)
+  if (!eligible) {
+    return res.json({ data: null, error: 'You can rate this product once your order for it has been delivered.' })
+  }
+  const comment = req.body.comment ? String(req.body.comment).slice(0, 1000) : null
+  const review = await prisma.review.upsert({
+    where: { userId_productId: { userId: req.user.id, productId: req.params.id } },
+    create: { userId: req.user.id, productId: req.params.id, rating: ratingNum, comment },
+    update: { rating: ratingNum, comment },
+  })
+  res.json({ data: { rating: review.rating, comment: review.comment }, error: null })
+})
+
+// GET /api/products/:id/review/mine — the logged-in user's own rating for this
+// product (if any) plus whether they're even eligible to rate it yet.
+router.get('/:id/review/mine', requireUser, async (req, res) => {
+  const eligible = await hasDeliveredOrder(req.user.id, req.params.id)
+  const review = await prisma.review.findUnique({
+    where: { userId_productId: { userId: req.user.id, productId: req.params.id } },
+  })
+  res.json({
+    data: { eligible, rating: review?.rating ?? null, comment: review?.comment ?? null },
+    error: null,
+  })
 })
 
 // POST /api/products — create or update (upsert by id)

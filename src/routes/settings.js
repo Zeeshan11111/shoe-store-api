@@ -6,6 +6,7 @@ const router = express.Router()
 function serialize(s) {
   return {
     paymentMethods: {
+      cod: { enabled: s.codEnabled, label: s.codLabel },
       jazzcash: { enabled: s.jazzcashEnabled, label: s.jazzcashLabel },
       easypaisa: { enabled: s.easypaisaEnabled, label: s.easypaisaLabel },
       card: { enabled: s.cardEnabled, label: s.cardLabel },
@@ -17,6 +18,8 @@ function serialize(s) {
 
 function toRow(settings) {
   return {
+    codEnabled: !!settings.paymentMethods.cod?.enabled,
+    codLabel: settings.paymentMethods.cod?.label || 'Cash on Delivery',
     jazzcashEnabled: !!settings.paymentMethods.jazzcash.enabled,
     jazzcashLabel: settings.paymentMethods.jazzcash.label,
     easypaisaEnabled: !!settings.paymentMethods.easypaisa.enabled,

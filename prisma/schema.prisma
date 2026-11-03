@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -18,16 +19,19 @@ model User {
   orders        Order[]
   cartItems     CartItem[]
   wishlistItems WishlistItem[]
+  reviews       Review[]
 }
 
 model Admin {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
-  role         String // 'super' | 'admin'
-  permissions  String // JSON array string
-  createdAt    DateTime  @default(now())
-  sessions     Session[]
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String
+  role             String // 'super' | 'admin'
+  permissions      String // JSON array string
+  resetToken       String?   @unique
+  resetTokenExpiry DateTime?
+  createdAt        DateTime  @default(now())
+  sessions         Session[]
 }
 
 model Session {
@@ -59,10 +63,28 @@ model Product {
   colorwayAccent String
   colors         String // JSON array string
   sizes          String // JSON array string
+  images         String? // JSON array string of photo URLs
+  // JSON array: [{ color, hex, images: [url], stock: { "<size>": qty } }].
+  // `colors`, `images` and `stock` above are kept in sync from this on save.
+  variants       String   @default("[]")
   saleId         String?
   sale           Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  ratingEntries  Review[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
 }
 
 model Sale {
@@ -105,6 +127,7 @@ model OrderItem {
   qty       Int
   colorway  String // JSON object string
   colorName String?
+  imageUrl  String?
 }
 
 model Banner {
@@ -116,6 +139,7 @@ model Banner {
   sole        String
   upper       String
   accent      String
+  imageUrl    String?
   sortOrder   Int     @default(0)
   saleId      String?
   sale        Sale?   @relation(fields: [saleId], references: [id], onDelete: SetNull)
@@ -123,6 +147,8 @@ model Banner {
 
 model Settings {
   id               Int     @id @default(1)
+  codEnabled       Boolean @default(true)
+  codLabel         String  @default("Cash on Delivery")
   jazzcashEnabled  Boolean @default(true)
   jazzcashLabel    String  @default("JazzCash")
   easypaisaEnabled Boolean @default(true)
@@ -147,6 +173,7 @@ model CartItem {
   qty       Int
   colorway  String // JSON object string
   colorName String?
+  imageUrl  String?
 
   @@unique([userId, key])
 }
