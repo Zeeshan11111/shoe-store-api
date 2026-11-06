@@ -2,6 +2,13 @@ const express = require('express')
 const prisma = require('../lib/prisma.js')
 const { getUserFromRequest, requireUser } = require('../lib/session.js')
 const { parseVariants, totalStock, findVariantIndex } = require('../lib/variants.js')
+const { serialize: serializeSettings, deliveryFor } = require('../lib/storeSettings.js')
+const { storefrontPrice } = require('./products.js')
+
+// Sizes are stored as EU numbers; shoppers read them as "EU / UK".
+function sizeLabel(eu) {
+  return eu >= 35 ? `${eu} / ${eu - 34}` : `${eu}`
+}
 
 // Applies `sign * qty` for each order item to its colour + size stock
 // (sign -1 when an order is placed, +1 when it's cancelled) and keeps the
@@ -20,9 +27,10 @@ async function adjustStock(tx, items, sign) {
     const next = (v.stock[key] ?? 0) + sign * item.qty
     if (next < 0) {
       const left = v.stock[key] ?? 0
+      const size = sizeLabel(item.size)
       return left === 0
-        ? `${item.name} in ${v.color}, size ${item.size} just sold out. Remove it to continue.`
-        : `Only ${left} left of ${item.name} in ${v.color}, size ${item.size}. Lower the quantity to continue.`
+        ? `${item.name} in ${v.color}, size ${size} just sold out. Remove it to continue.`
+        : `Only ${left} left of ${item.name} in ${v.color}, size ${size}. Lower the quantity to continue.`
     }
     v.stock[key] = next
   }
@@ -42,6 +50,7 @@ function serialize(order) {
   return {
     orderId: order.orderId,
     total: order.total,
+    deliveryFee: order.deliveryFee ?? 0,
     estimatedDelivery: order.estimatedDelivery,
     status: order.status,
     customerName: order.customerName,
@@ -72,18 +81,53 @@ router.post('/', async (req, res) => {
     return res.json({ data: null, error: 'Your bag is empty.' })
   }
 
+  const settings = serializeSettings(await prisma.settings.findUnique({ where: { id: 1 } }))
+  const enabledMethods = Object.entries(settings.paymentMethods)
+    .filter(([, m]) => m.enabled)
+    .map(([key]) => key)
+  const whatsappOnly = enabledMethods.length === 0 && settings.whatsapp.enabled && !!settings.whatsapp.number
+  const methodAllowed = enabledMethods.includes(paymentMethod) || (paymentMethod === 'whatsapp' && whatsappOnly)
+  if (!methodAllowed) {
+    return res.json({ data: null, error: 'That payment method is not available right now. Please refresh and choose another.' })
+  }
+
+  // Prices, names and brands come from the database, never from the
+  // browser — what the customer sees on the order is what they owe.
+  const products = await prisma.product.findMany({
+    where: { id: { in: [...new Set(items.map((i) => i.id))] } },
+    include: { sale: true },
+  })
+  const byId = Object.fromEntries(products.map((p) => [p.id, p]))
+  const missing = items.find((i) => !byId[i.id])
+  if (missing) {
+    return res.json({ data: null, error: `${missing.name || 'An item'} is no longer available. Remove it to continue.` })
+  }
+  const lines = items.map((item) => {
+    const p = byId[item.id]
+    return {
+      ...item,
+      name: p.name,
+      brand: p.brand,
+      price: storefrontPrice(p),
+      size: Math.round(Number(item.size)),
+      qty: Math.max(1, Math.floor(Number(item.qty) || 1)),
+    }
+  })
+
   const user = await getUserFromRequest(req)
   const orderId = `ORD-${Math.floor(100000 + Math.random() * 900000)}`
-  const total = items.reduce((sum, item) => sum + item.price * item.qty, 0)
+  const subtotal = lines.reduce((sum, item) => sum + item.price * item.qty, 0)
+  const delivery = deliveryFor(settings, shippingAddress?.city, subtotal)
 
   const result = await prisma.$transaction(async (tx) => {
-    const stockError = await adjustStock(tx, items, -1)
+    const stockError = await adjustStock(tx, lines, -1)
     if (stockError) return { error: stockError }
     const order = await tx.order.create({
       data: {
         orderId,
-        total,
-        estimatedDelivery: '3–5 business days',
+        total: subtotal + delivery.fee,
+        deliveryFee: delivery.fee,
+        estimatedDelivery: delivery.time,
         status: 'Pending',
         customerName: customer?.name || 'Guest',
         customerEmail: customer?.email || '',
@@ -91,7 +135,7 @@ router.post('/', async (req, res) => {
         paymentMethod,
         userId: user?.id,
         items: {
-          create: items.map((item) => ({
+          create: lines.map((item) => ({
             productId: item.id,
             name: item.name,
             brand: item.brand,

@@ -1,0 +1,18 @@
+-- AlterTable
+ALTER TABLE "Settings" ADD COLUMN "deliveryFee" INTEGER NOT NULL DEFAULT 200;
+ALTER TABLE "Settings" ADD COLUMN "freeDeliveryAbove" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Settings" ADD COLUMN "deliveryTime" TEXT NOT NULL DEFAULT '3–5 working days';
+ALTER TABLE "Settings" ADD COLUMN "deliveryCities" TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE "Settings" ADD COLUMN "storePhone" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Settings" ADD COLUMN "storeEmail" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Settings" ADD COLUMN "storeAddress" TEXT NOT NULL DEFAULT 'Main Bazaar, Mandi Sadiq Ganj';
+ALTER TABLE "Settings" ADD COLUMN "storeHours" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Settings" ADD COLUMN "storeMapUrl" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Settings" ADD COLUMN "returnDays" INTEGER NOT NULL DEFAULT 7;
+ALTER TABLE "Settings" ADD COLUMN "returnSaleItems" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Settings" ADD COLUMN "returnPolicy" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Settings" ADD COLUMN "originalBadgeEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Settings" ADD COLUMN "categories" TEXT NOT NULL DEFAULT '[]';
+
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN "deliveryFee" REAL NOT NULL DEFAULT 0;

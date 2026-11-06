@@ -107,6 +107,7 @@ model Order {
   customerName      String
   customerEmail     String
   total             Float
+  deliveryFee       Float       @default(0)
   status            String      @default("Pending") // Pending | Confirmed | Delivered
   estimatedDelivery String
   shippingAddress   String? // JSON object string
@@ -158,6 +159,24 @@ model Settings {
   whatsappEnabled  Boolean @default(true)
   whatsappNumber   String  @default("923001234567")
   brandStripEnabled Boolean @default(true)
+
+  deliveryFee          Int     @default(200)
+  freeDeliveryAbove    Int     @default(0) // 0 = no free-delivery threshold
+  deliveryTime         String  @default("3–5 working days")
+  deliveryCities       String  @default("[]") // JSON: [{ city, fee, time }]
+
+  storePhone           String  @default("")
+  storeEmail           String  @default("")
+  storeAddress         String  @default("Main Bazaar, Mandi Sadiq Ganj")
+  storeHours           String  @default("")
+  storeMapUrl          String  @default("")
+
+  returnDays           Int     @default(7)
+  returnSaleItems      Boolean @default(false)
+  returnPolicy         String  @default("")
+
+  originalBadgeEnabled Boolean @default(false)
+  categories           String  @default("[]") // JSON array of category names
 }
 
 model CartItem {

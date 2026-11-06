@@ -75,12 +75,22 @@ function serialize(p, reviewStats = {}) {
 // attached, the real price is computed here instead of the admin having to
 // hand-type a separate sale price, and the discount disappears automatically
 // the moment the campaign is disabled or its date window ends.
+function salePrice(p) {
+  return Math.round(p.price * (1 - p.sale.percentage / 100) * 100) / 100
+}
+
+// What a customer is charged right now for one pair — the same number the
+// storefront shows. Needs the row loaded with `include: { sale: true }`.
+function storefrontPrice(p) {
+  return isSaleActive(p.sale) ? salePrice(p) : p.price
+}
+
 function serializeForStorefront(p, reviewStats = {}) {
   const base = serialize(p, reviewStats)
   if (!isSaleActive(p.sale)) return base
   return {
     ...base,
-    price: Math.round(p.price * (1 - p.sale.percentage / 100) * 100) / 100,
+    price: salePrice(p),
     originalPrice: p.price,
   }
 }
@@ -252,4 +262,4 @@ router.delete('/:id', async (req, res) => {
   res.json({ data: true, error: null })
 })
 
-module.exports = { router, serializeProduct: serialize }
+module.exports = { router, serializeProduct: serialize, storefrontPrice }

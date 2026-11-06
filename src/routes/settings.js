@@ -1,36 +1,8 @@
 const express = require('express')
 const prisma = require('../lib/prisma.js')
+const { serialize, toRow } = require('../lib/storeSettings.js')
 
 const router = express.Router()
-
-function serialize(s) {
-  return {
-    paymentMethods: {
-      cod: { enabled: s.codEnabled, label: s.codLabel },
-      jazzcash: { enabled: s.jazzcashEnabled, label: s.jazzcashLabel },
-      easypaisa: { enabled: s.easypaisaEnabled, label: s.easypaisaLabel },
-      card: { enabled: s.cardEnabled, label: s.cardLabel },
-    },
-    whatsapp: { enabled: s.whatsappEnabled, number: s.whatsappNumber },
-    brandStrip: { enabled: s.brandStripEnabled },
-  }
-}
-
-function toRow(settings) {
-  return {
-    codEnabled: !!settings.paymentMethods.cod?.enabled,
-    codLabel: settings.paymentMethods.cod?.label || 'Cash on Delivery',
-    jazzcashEnabled: !!settings.paymentMethods.jazzcash.enabled,
-    jazzcashLabel: settings.paymentMethods.jazzcash.label,
-    easypaisaEnabled: !!settings.paymentMethods.easypaisa.enabled,
-    easypaisaLabel: settings.paymentMethods.easypaisa.label,
-    cardEnabled: !!settings.paymentMethods.card.enabled,
-    cardLabel: settings.paymentMethods.card.label,
-    whatsappEnabled: !!settings.whatsapp.enabled,
-    whatsappNumber: settings.whatsapp.number,
-    brandStripEnabled: !!settings.brandStrip?.enabled,
-  }
-}
 
 // GET /api/settings
 router.get('/', async (req, res) => {
